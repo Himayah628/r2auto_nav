@@ -1,0 +1,165 @@
+import math
+import rclpy
+from rclpy.node import Node
+from rclpy.qos import qos_profile_sensor_data
+from sensor_msgs.msg import LaserScan
+from geometry_msgs.msg import Twist, Point
+from nav_msgs.msg import Odometry
+from std_msgs.msg import String
+import numpy as np
+import math
+
+# import numpy as np
+from math import atan2
+# from math import pi
+from time import sleep
+
+
+rotatechange = 0.1
+speedchange = 0.05
+x = 0.0
+y = 0.0 
+theta = 0.0
+
+Tables = {1:[-0.250, 2.270],2:[0.550, 2.270],3:[0.550, 1.270],4:[1.350, 1.270],5:[2.190, 2.270],6:[0,2.860]}
+Table = int(input("table number: "))
+
+WAYPOINTS = {1:[[0,0.5],[0,1],[0,2],[-0.25,2.27]],
+             2:[[0,0.5],[0,1],[0,2],[0.550, 2.270]],
+             3:[[0,0.5],[0,1],[0.550, 1.270]],
+             4:[[0,0.5],[0.5,0.5],[1.35,0.5],[1.350, 1.270]],
+             5:[[0,0.5],[0.5,0.5],[1.35,0.5],[2.19,0.5],[2.19,1.50],[2.190, 2.270]],
+             6:[[0,0.5],[0,1],[0.8,1],[1.6,1],[1.6,2.860],[0,2.860]],}
+
+
+
+def euler_from_quaternion(x, y, z, w):
+    """
+    Convert a quaternion into euler angles (roll, pitch, yaw)
+    roll is rotation around x in radians (counterclockwise)
+    pitch is rotation around y in radians (counterclockwise)
+    yaw is rotation around z in radians (counterclockwise)
+    """
+
+    t3 = +2.0 * (w * z + x * y)
+    t4 = +1.0 - 2.0 * (y * y + z * z)
+    yaw_z = math.atan2(t3, t4)
+
+    return  yaw_z # in radians
+        
+    
+class Auto_Mover(Node):
+    orien = -1.1
+    front  = 5.0
+    dis = 0.0
+    
+    def __init__(self):
+        self.x = 0
+        self.y = 0
+        
+        super().__init__('auto_mover')
+         # create publisher for moving TurtleBot
+        self.publisher_ = self.create_publisher(Twist,'cmd_vel',10)
+        # self.get_logger().info('Created publisher')
+        
+        # create subscription to track orientation
+        self.odom_subscription = self.create_subscription(
+            Odometry,
+            'odom',
+            self.odom_callback,
+            10)
+        # self.get_logger().info('Created subscriber')
+        self.odom_subscription  # prevent unused variable warning
+        
+        # create subscription to track lidar
+        self.scan_subscription = self.create_subscription(
+            LaserScan,
+            'scan',
+            self.scan_callback,
+            qos_profile_sensor_data) 
+        self.scan_subscription  # prevent unused variable warning
+        
+         
+        
+    def odom_callback(self, msg):
+        # print("odom")
+        self.rot_q = msg.pose.pose.orientation
+        self.x = msg.pose.pose.position.x
+        self.y = msg.pose.pose.position.y
+        self.orien = euler_from_quaternion(self.rot_q.x,self.rot_q.y,self.rot_q.z,self.rot_q.w)
+    
+
+    def scan_callback(self, msg):
+        # create numpy array
+        laser_range = np.array(msg.ranges)
+        positive_range = laser_range[-15:-1]
+        print(laser_range[0])
+        # taken_range = np.add(taken_range, laser_range[0:16])
+        other_range = (laser_range[0:14])
+        taken_range = np.append(other_range , positive_range)
+        laser_range[laser_range==0] = np.nan
+        # find index with minimum value
+        self.front = laser_range[0]
+        lr2i = np.nanargmin(taken_range)
+        self.dis = taken_range[lr2i]
+        self.angle_go = math.radians(lr2i)
+        
+    #check the current location and the coodinate of the table selected
+    def travelling_to_point(self, x,y):
+        twist = Twist()
+        goal_x = x
+        goal_y = y
+        
+        theta = atan2(goal_y-self.y,goal_x-self.x)
+        inc_x = 10000000 
+        try:
+                while inc_x != 0:
+                    rclpy.spin_once(self)
+                    # print(self.orien)
+                    # self.orien = euler_from_quaternion(self.rot_q.x,self.rot_q.y,self.rot_q.z,self.rot_q.w)
+                    
+                    inc_x = goal_x - self.x
+
+                    #if the current position is nearby the targeted point
+                    if int(abs(goal_x)*100) - int(abs(self.x)*100) < 5:
+                        print("stopping")
+                        twist.linear.x = 0.0
+                        twist.angular.z = 0.0
+                        # else:
+                        #     twist.linear.x = -0.1
+                        #     twist.angular.z = 0.0
+
+                    self.publisher_.publish(twist)
+      
+        finally:
+            # stop moving   
+            twist.linear.x = 0.0
+            twist.angular.z = 0.0
+            self.publisher_.publish(twist)
+       
+    #make robot run according to the waypoints provided
+    def path(self): 
+        twist = Twist()
+        x = self.x
+        y = self.y
+        path = WAYPOINTS[Table]
+        # track a sequence of waypoints        
+        for point in path:
+            self.travelling_to_point(point[0]+x, point[1]+y)
+            print("stop")
+        
+    #do go back to the  dispenser (reverse array) if         
+            
+
+def main(args = None):
+    try:
+        rclpy.init(args = args)
+        auto_move = Auto_Mover()
+        rclpy.spin_once(auto_move)  
+        auto_move.path()
+    except KeyboardInterrupt:
+        auto_move.destroy_node()
+        rclpy.shutdown()
+
+if __name__== '__main__':
+    main()

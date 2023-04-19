@@ -1,0 +1,28 @@
+import time
+import RPi.GPIO as GPIO
+
+# Pin of Input
+GPIOpin = -1
+# Initial the input pin
+def initialInductive(pin):
+    global GPIOpin 
+    GPIOpin = piGPIO.setmode(GPIO.BCM)
+    GPIO.setup(GPIOpin,GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
+    print("Finished Initiation")
+    print(GPIOpi# Detect Metal
+def detectMetal():
+    if(GPIOpin != -1):
+        state = GPIO.input(GPIOpin)
+        if not state:
+            print("Metal Detected")
+        else :
+            print("Metal Not Detected")
+    else:
+        print("Please Initial Input Pin")
+# test module
+if __name__ == '__main__':
+    pin =  15
+    initialInductive(pin)
+    while True:
+        detectMetal()
+        time.sleep(0.2)
