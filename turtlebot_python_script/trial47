@@ -1,0 +1,56 @@
+import rclpy
+from rclpy.node import Node
+from sensor_msgs.msg import LaserScan
+from geometry_msgs.msg import Twist
+
+class Turtlebot3Burger(Node):
+
+    def __init__(self):
+        super().__init__('turtlebot3_burger')
+        self.create_subscription(LaserScan, '/scan', self.scan_callback, 10)
+        self.publisher_ = self.create_publisher(Twist, '/cmd_vel', 10)
+        self.table_locations = {
+            1: (-0.25, 2.27),
+            2: (0.55, 2.27),
+            3: (0.55, 1.27)
+        }
+        self.current_table = None
+
+    def scan_callback(self, msg):
+        if self.current_table is not None:
+            # Check if we're close enough to the table
+            if msg.ranges[0] < 0.5:
+                self.stop()
+                self.get_logger().info('Reached table {}'.format(self.current_table))
+                self.current_table = None
+            else:
+                # If not, adjust our heading towards the table
+                error = self.table_locations[self.current_table][1] - msg.ranges[0]
+                twist = Twist()
+                twist.linear.x = 0.0
+                twist.angular.z = error * 0.5
+                self.publisher_.publish(twist)
+        else:
+            # Wait for table number input
+            table_num = input('Enter table number: ')
+            if table_num in self.table_locations:
+                self.current_table = table_num
+                self.get_logger().info('Navigating to table {}'.format(self.current_table))
+            else:
+                self.get_logger().warn('Invalid table number')
+
+    def stop(self):
+        twist = Twist()
+        twist.linear.x = 0.0
+        twist.angular.z = 0.0
+        self.publisher_.publish(twist)
+
+def main(args=None):
+    rclpy.init(args=args)
+    node = Turtlebot3Burger()
+    rclpy.spin(node)
+    rclpy.shutdown()
+
+if __name__ == '__main__':
+    main()
+
