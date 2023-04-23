@@ -6,8 +6,8 @@
 #include <Keypad.h>
 
 // Replace the next variables with your SSID/Password combination
-const char* ssid = "JingxiGalaxyS21";
-const char* password = "1234567890";
+const char* ssid = "YOUR_SSID";
+const char* password = "YOUR_PASSWORD";
 
 // Add your MQTT Broker IP address, example:
 //const char* mqtt_server = "192.168.1.144";
